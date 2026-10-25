@@ -2,35 +2,23 @@
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Passaparola AR - Yapay Zeka Sesli Yarışma</title>
-    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
-    
     <style>
+        html, body { height: 100%; margin: 0; overflow: hidden; overscroll-behavior: none; }
         body {
             font-family: 'Rajdhani', sans-serif;
             background-color: #050814;
-            color: #ffffff;
-            overflow: hidden;
+            color: #fff;
             user-select: none;
+            -webkit-user-select: none;
         }
+        .font-orbitron { font-family: 'Orbitron', sans-serif; }
+        #webcam { transform: scaleX(-1); object-fit: cover; }
 
-        .font-orbitron {
-            font-family: 'Orbitron', sans-serif;
-        }
-
-        /* Mirror video feed for realistic mirror view */
-        #webcam {
-            transform: scaleX(-1);
-            object-fit: cover;
-        }
-
-        /* Glassmorphism styling */
         .glass-panel {
             background: rgba(10, 15, 30, 0.75);
             backdrop-filter: blur(12px);
@@ -38,640 +26,617 @@
             border: 1px solid rgba(255, 255, 255, 0.15);
             box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
         }
-
         .glass-button {
             background: rgba(255, 255, 255, 0.1);
             backdrop-filter: blur(8px);
             border: 1px solid rgba(255, 255, 255, 0.2);
             transition: all 0.2s ease;
         }
-
-        .glass-button:hover {
+        .glass-button:hover:not(:disabled) {
             background: rgba(255, 255, 255, 0.25);
             border-color: rgba(0, 240, 255, 0.8);
             box-shadow: 0 0 15px rgba(0, 240, 255, 0.4);
-            transform: translateY(-2px);
         }
+        .glass-button:active:not(:disabled) { transform: translateY(1px); }
+        .glass-button:disabled { opacity: .4; }
 
-        .glass-button:active {
-            transform: translateY(1px);
-        }
+        .glow-cyan { text-shadow: 0 0 10px rgba(0,240,255,.8), 0 0 20px rgba(0,240,255,.4); }
+        .glow-gold { text-shadow: 0 0 10px rgba(255,215,0,.8), 0 0 20px rgba(255,215,0,.4); }
+        .glow-green { text-shadow: 0 0 10px rgba(0,255,100,.8), 0 0 20px rgba(0,255,100,.4); }
 
-        /* Neon Glow Effects */
-        .glow-cyan {
-            text-shadow: 0 0 10px rgba(0, 240, 255, 0.8), 0 0 20px rgba(0, 240, 255, 0.4);
-        }
-
-        .glow-gold {
-            text-shadow: 0 0 10px rgba(255, 215, 0, 0.8), 0 0 20px rgba(255, 215, 0, 0.4);
-        }
-
-        .glow-green {
-            text-shadow: 0 0 10px rgba(0, 255, 100, 0.8), 0 0 20px rgba(0, 255, 100, 0.4);
-        }
-
-        /* Pulse animation for microphone visualizer */
         @keyframes pulse-ring {
             0% { transform: scale(0.95); opacity: 0.8; }
             50% { transform: scale(1.15); opacity: 0.3; }
             100% { transform: scale(0.95); opacity: 0.8; }
         }
-
-        .listening-pulse {
-            animation: pulse-ring 1.5s infinite ease-in-out;
-        }
+        .listening-pulse { animation: pulse-ring 1.5s infinite ease-in-out; }
     </style>
 </head>
-<body class="w-screen h-screen relative flex flex-col justify-between p-4 md:p-6">
+<body>
+<div id="app" class="fixed inset-0 flex flex-col gap-2 p-2 md:p-4" style="height:100dvh;">
 
-    <!-- AR Camera & Canvas Layer -->
+    <!-- Kamera + AR katmanı -->
     <div class="fixed inset-0 w-full h-full z-0 overflow-hidden bg-black">
         <video id="webcam" class="absolute inset-0 w-full h-full" autoplay playsinline muted></video>
         <canvas id="arCanvas" class="absolute inset-0 w-full h-full pointer-events-none"></canvas>
     </div>
 
-    <!-- HUD Header Bar -->
-    <header class="relative z-10 w-full flex justify-between items-center glass-panel rounded-2xl p-4 md:px-8 border-cyan-500/30">
-        <!-- Title & Status -->
-        <div class="flex items-center space-x-3">
-            <div class="w-10 h-10 rounded-full bg-cyan-500/20 border border-cyan-400 flex items-center justify-center text-cyan-400 font-orbitron font-bold text-xl glow-cyan">
-                <i class="fa-solid font-bold fa-circle-notch animate-spin text-sm" id="spinnerIcon" style="display:none;"></i>
-                <i class="fa-solid fa-gamepad" id="gameIcon"></i>
+    <!-- Üst bar -->
+    <header class="relative z-10 shrink-0 flex justify-between items-center glass-panel rounded-2xl px-3 py-2 md:px-6 md:py-3 border-cyan-500/30">
+        <div class="flex items-center space-x-2">
+            <div class="w-8 h-8 rounded-full bg-cyan-500/20 border border-cyan-400 flex items-center justify-center text-cyan-400 glow-cyan">
+                <i class="fa-solid fa-gamepad text-sm"></i>
             </div>
-            <div>
-                <h1 class="font-orbitron text-xl md:text-2xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">
-                    PASSAPAROLA <span class="text-xs px-2 py-0.5 rounded bg-cyan-500/20 border border-cyan-400/40 text-cyan-300">AR VOICE</span>
-                </h1>
-                <p class="text-xs text-gray-400 font-sans hidden sm:block">Televizyon Efsanesi Şimdi Kameranda!</p>
-            </div>
+            <h1 class="font-orbitron text-sm md:text-xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">
+                PASSAPAROLA <span class="hidden sm:inline text-xs px-2 py-0.5 rounded bg-cyan-500/20 border border-cyan-400/40 text-cyan-300">AR VOICE</span>
+            </h1>
         </div>
-
-        <!-- Score Board & Timer -->
-        <div class="flex items-center space-x-4 md:space-x-8">
-            <!-- Correct Count -->
+        <div class="flex items-center space-x-3 md:space-x-6">
             <div class="text-center">
-                <p class="text-xs text-gray-400 tracking-wider">DOĞRU</p>
-                <p id="scoreCorrect" class="font-orbitron text-xl md:text-2xl font-bold text-emerald-400 glow-green">0</p>
+                <p class="text-[10px] md:text-xs text-gray-400 tracking-wider leading-none">DOĞRU</p>
+                <p id="scoreCorrect" class="font-orbitron text-lg md:text-2xl font-bold text-emerald-400 glow-green leading-tight">0</p>
             </div>
-            <!-- Wrong Count -->
             <div class="text-center">
-                <p class="text-xs text-gray-400 tracking-wider">YANLIŞ</p>
-                <p id="scoreWrong" class="font-orbitron text-xl md:text-2xl font-bold text-rose-500">0</p>
+                <p class="text-[10px] md:text-xs text-gray-400 tracking-wider leading-none">PAS</p>
+                <p id="scorePass" class="font-orbitron text-lg md:text-2xl font-bold text-amber-500 leading-tight">0</p>
             </div>
-            <!-- Countdown Timer -->
-            <div class="text-center pl-4 border-l border-white/10">
-                <p class="text-xs text-cyan-300 tracking-wider">SÜRE</p>
-                <div class="flex items-center space-x-1">
-                    <i class="fa-solid fa-stopwatch text-amber-400 text-sm animate-pulse"></i>
-                    <span id="timerDisplay" class="font-orbitron text-2xl md:text-3xl font-black text-amber-400 glow-gold">100</span>
-                </div>
+            <div class="text-center pl-3 border-l border-white/10">
+                <p class="text-[10px] md:text-xs text-cyan-300 tracking-wider leading-none">SÜRE</p>
+                <span id="timerDisplay" class="font-orbitron text-xl md:text-3xl font-black text-amber-400 glow-gold leading-tight">100</span>
             </div>
         </div>
     </header>
 
-    <!-- Main Question Box & Active Speech Display -->
-    <main class="relative z-10 w-full max-w-3xl mx-auto my-auto flex flex-col items-center">
-        <!-- Question Display Card -->
-        <div id="questionCard" class="w-full glass-panel rounded-3xl p-6 md:p-8 text-center transition-all duration-300 border-amber-400/40 shadow-2xl relative overflow-hidden">
-            <!-- Current Letter Badge -->
-            <div class="absolute -top-3 left-1/2 transform -translate-x-1/2 px-6 py-1 bg-gradient-to-r from-amber-500 to-yellow-400 text-black font-orbitron font-black text-lg md:text-xl rounded-full shadow-lg border-2 border-amber-200" id="currentLetterBadge">
-                HARF: A
-            </div>
+    <!-- Harf çemberi için boş alan (kafanın etrafı) -->
+    <main id="stage" class="relative z-10 flex-1 min-h-0"></main>
 
-            <!-- Question Text -->
-            <p id="questionText" class="text-xl md:text-2xl lg:text-3xl font-semibold leading-relaxed text-slate-100 mt-4 min-h-[80px] flex items-center justify-center">
-                Oyunu başlatmak için aşağıdaki "BAŞLAT" butonuna bas veya "Başla" de!
+    <!-- Alt panel: soru + kontroller -->
+    <section class="relative z-10 shrink-0 w-full max-w-3xl mx-auto glass-panel rounded-2xl p-3 md:p-4 border-amber-400/30">
+        <div class="flex items-start gap-3">
+            <div id="currentLetterBadge" class="shrink-0 w-12 h-12 md:w-14 md:h-14 rounded-full bg-gradient-to-br from-amber-500 to-yellow-400 text-black font-orbitron font-black text-2xl md:text-3xl flex items-center justify-center border-2 border-amber-200 shadow-lg">?</div>
+            <p id="questionText" class="flex-1 text-base md:text-xl font-semibold leading-snug text-slate-100 min-h-[3.2rem] flex items-center" style="display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;">
+                "BAŞLAT" butonuna bas, soruları sesli cevapla.
             </p>
-
-            <!-- Detected Speech Feedback Box -->
-            <div id="speechBox" class="mt-4 pt-3 border-t border-white/10 flex items-center justify-center space-x-2 text-sm md:text-base text-cyan-300 font-mono">
-                <div id="micIndicator" class="w-3 h-3 rounded-full bg-slate-500"></div>
-                <span id="speechStatus" class="text-gray-400 italic">Ses dinleme hazır...</span>
-                <span id="speechTranscript" class="font-bold text-cyan-200 underline underline-offset-4"></span>
-            </div>
-        </div>
-    </main>
-
-    <!-- HUD Footer Controls & Instructions -->
-    <footer class="relative z-10 w-full max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 glass-panel rounded-2xl p-4 border-cyan-500/20">
-        <!-- Voice Command Hints -->
-        <div class="flex items-center space-x-3 text-xs md:text-sm text-gray-300">
-            <div class="p-2 rounded-lg bg-cyan-500/10 border border-cyan-400/30 text-cyan-400">
-                <i class="fa-solid fa-microphone"></i>
-            </div>
-            <div>
-                <span class="font-bold text-white">Ses Komutları:</span>
-                <span class="text-amber-300 ml-1">"PAS"</span> pas geçer |
-                <span class="text-emerald-300 ml-1">Cevabını söyle</span>
-            </div>
         </div>
 
-        <!-- Game Control Buttons -->
-        <div class="flex items-center space-x-3 w-full sm:w-auto justify-end">
-            <button id="btnStart" onclick="startGame()" class="glass-button px-6 py-3 rounded-xl font-orbitron font-bold text-emerald-400 flex items-center space-x-2 text-sm md:text-base">
-                <i class="fa-solid fa-play"></i>
-                <span>BAŞLAT</span>
+        <div class="mt-2 pt-2 border-t border-white/10 flex items-center justify-center space-x-2 text-xs md:text-base font-mono min-h-[1.5rem]">
+            <div id="micIndicator" class="w-3 h-3 shrink-0 rounded-full bg-slate-500"></div>
+            <span id="speechStatus" class="text-gray-400 italic truncate">Ses dinleme hazır</span>
+            <span id="speechTranscript" class="font-bold text-cyan-200 underline underline-offset-4 truncate"></span>
+        </div>
+
+        <div class="mt-2 flex items-center gap-2">
+            <button id="btnStart" onclick="startGame()" class="glass-button flex-1 py-2 md:py-3 rounded-xl font-orbitron font-bold text-emerald-400 flex items-center justify-center gap-2 text-xs md:text-base">
+                <i class="fa-solid fa-play"></i><span>BAŞLAT</span>
             </button>
-            <button id="btnPass" onclick="handlePass()" class="glass-button px-5 py-3 rounded-xl font-orbitron font-bold text-amber-400 flex items-center space-x-2 text-sm md:text-base" disabled>
-                <i class="fa-solid fa-forward"></i>
-                <span>PAS</span>
+            <button id="btnPass" onclick="handlePass()" class="glass-button flex-1 py-2 md:py-3 rounded-xl font-orbitron font-bold text-amber-400 flex items-center justify-center gap-2 text-xs md:text-base" disabled>
+                <i class="fa-solid fa-forward"></i><span>PAS</span>
             </button>
-            <button id="btnRestart" onclick="resetGame()" class="glass-button px-5 py-3 rounded-xl font-orbitron font-bold text-rose-400 flex items-center space-x-2 text-sm md:text-base">
-                <i class="fa-solid fa-rotate-right"></i>
-                <span>YENİDEN</span>
+            <button id="btnRestart" onclick="resetGame()" class="glass-button flex-1 py-2 md:py-3 rounded-xl font-orbitron font-bold text-rose-400 flex items-center justify-center gap-2 text-xs md:text-base">
+                <i class="fa-solid fa-rotate-right"></i><span>YENİDEN</span>
             </button>
         </div>
-    </footer>
+        <p class="mt-2 text-center text-[11px] md:text-sm text-gray-300">
+            Sesli komutlar: <span class="text-amber-300">"PAS"</span> · <span class="text-cyan-300">"TEKRAR"</span> (soruyu tekrar okur)
+        </p>
+    </section>
 
-    <!-- Audio FX & Game Logic JavaScript -->
-    <script>
-        /**
-         * PASSAPAROLA AR - GAME ENGINE & SYSTEM CONTROLLER
-         */
+<script>
+/* ============ 1. SORULAR ============ */
+const ALPHABET = ["A","B","C","Ç","D","E","F","G","H","İ","K","L","M","N","O","P","R","S","Ş","T","U","Ü","V","Y","Z"];
 
-        // 1. TURKISH ALPHABET & QUESTION BANK (Passaparola Style)
-        const ALPHABET = ["A", "B", "C", "Ç", "D", "E", "F", "G", "H", "İ", "K", "L", "M", "N", "O", "P", "R", "S", "Ş", "T", "U", "Ü", "V", "Y", "Z"];
+// answer: ana cevap, alt: kabul edilen diğer cevaplar
+const QUESTIONS_BANK = {
+    "A": { q: "A ile başlar. Kış uykusuna yatan, bal ve balık seven iri hayvan?", answer: "AYI", alt: [] },
+    "B": { q: "B ile başlar. Arıların yaptığı, kahvaltıda ekmeğe sürülen tatlı besin?", answer: "BAL", alt: [] },
+    "C": { q: "C ile başlar. Pantolonun veya ceketin eşya koyduğumuz kumaş gözü?", answer: "CEP", alt: [] },
+    "Ç": { q: "Ç ile başlar. Bahçede açan, güzel kokulu, rengârenk bitki başı?", answer: "ÇİÇEK", alt: [] },
+    "D": { q: "D ile başlar. Tuzlu, çok geniş su kütlesi; gemilerle üzerinde yolculuk edilir?", answer: "DENİZ", alt: [] },
+    "E": { q: "E ile başlar. Kırmızı, yeşil ya da sarı olabilen, ağaçta yetişen yuvarlak meyve?", answer: "ELMA", alt: [] },
+    "F": { q: "F ile başlar. Karadeniz'in simgesi, kabuklu ve yağlı kuruyemiş?", answer: "FINDIK", alt: [] },
+    "G": { q: "G ile başlar. Gündüzleri bizi aydınlatan ve ısıtan, sistemimizin merkezindeki yıldız?", answer: "GÜNEŞ", alt: [] },
+    "H": { q: "H ile başlar. Soluduğumuz, gözle görülmeyen gaz karışımı?", answer: "HAVA", alt: [] },
+    "İ": { q: "İ ile başlar. Dikiş dikerken kullanılan, ucu sivri, delikli küçük araç?", answer: "İĞNE", alt: [] },
+    "K": { q: "K ile başlar. Sayfaları olan, okuduğumuz kapaklı yayın?", answer: "KİTAP", alt: [] },
+    "L": { q: "L ile başlar. Evde ışık veren, ampul takılan aydınlatma eşyası?", answer: "LAMBA", alt: [] },
+    "M": { q: "M ile başlar. İçine kıyma konup yoğurtla yenen, küçük hamur yemeği?", answer: "MANTI", alt: [] },
+    "N": { q: "N ile başlar. Kırmızı taneli, kabuğu sert, sonbaharda yenen meyve?", answer: "NAR", alt: [] },
+    "O": { q: "O ile başlar. Öğrencilerin ders gördüğü yer?", answer: "OKUL", alt: [] },
+    "P": { q: "P ile başlar. Üzerine peynir ve sucuk konup fırında pişirilen İtalyan yemeği?", answer: "PİZZA", alt: [] },
+    "R": { q: "R ile başlar. Kırmızı, mavi, yeşil gibi gözün algıladığı özelliğe ne denir?", answer: "RENK", alt: [] },
+    "S": { q: "S ile başlar. Musluktan akan, içtiğimiz renksiz sıvı?", answer: "SU", alt: [] },
+    "Ş": { q: "Ş ile başlar. Çaya atılan, tatlandıran beyaz kristal?", answer: "ŞEKER", alt: [] },
+    "T": { q: "T ile başlar. Raylar üzerinde giden, vagonları olan araç?", answer: "TREN", alt: [] },
+    "U": { q: "U ile başlar. Geceleri gözlerimizi kapatıp dinlenmemiz?", answer: "UYKU", alt: [] },
+    "Ü": { q: "Ü ile başlar. Salkım salkım asılan, kurutulunca kuru meyve olan meyve?", answer: "ÜZÜM", alt: [] },
+    "V": { q: "V ile başlar. Başımızdan ayağımıza kadar tüm bedenimiz?", answer: "VÜCUT", alt: [] },
+    "Y": { q: "Y ile başlar. Ağaçların üzerinde yeşil duran, sonbaharda dökülen kısmı?", answer: "YAPRAK", alt: [] },
+    "Z": { q: "Z ile başlar. Saatin gösterdiği, geçmişten geleceğe akan şey?", answer: "ZAMAN", alt: [] }
+};
 
-        const QUESTIONS_BANK = {
-            "A": { q: "Gökyüzünde geceleri parıldayan, etrafında gezegenler dönen devasa gaz kütlesi?", answer: "AY", alt: ["YILDIZ", "ASTRONOMİ"] },
-            "B": { q: "Bilgisayarda tüm donanım birimlerinin takıldığı ana devre kartı?", answer: "ANAKART", alt: ["BİLGİSAYAR"] },
-            "C": { q: "Maddenin en küçük yapı taşı olarak bilinen nötron ve elektronlu yapı?", answer: "ATOM", alt: ["CEVAP"] },
-            "Ç": { q: "Çocukların parkta üzerine oturup sallandığı veya kaydığı oyun alanı gereci?", answer: "ÇIKRIK", alt: ["ÇOCUK", "ÇATAL"] },
-            "D": { q: "Dünya etrafında dönen ve geceleri gökyüzünü aydınlatan doğal uydumuz?", answer: "DÜNYA", alt: ["DENİZ", "DOĞA"] },
-            "E": { q: "Maddenin ısı alarak sıvı halden gaz haline geçmesi olayı?", answer: "BUHARLAŞMA", alt: ["EVREN"] },
-            "F": { q: "Işık enerjisini yakalayıp elektrik enerjisine çeviren araca verilen genel ad?", answer: "FOTOVOLTAİK", alt: ["FOTOĞRAF"] },
-            "G": { q: "Gündüzleri dünyamızı aydınlatan ve ısıtan sistemimizin merkezindeki yıldız?", answer: "GÜNEŞ", alt: ["GEZEGEN"] },
-            "H": { q: "Canlıların yaşaması için soluduğu, oksijen içeren gaz karışımı?", answer: "HAVA", alt: ["HAYAT"] },
-            "İ": { q: "İnternet sitelerinin birbirine bağlanmasını sağlayan ağ sistemi?", answer: "İNTERNET", alt: ["İLETİŞİM"] },
-            "K": { q: "Kedigiller familyasından, çölün ve ormanın kralı olarak anılan yırtıcı hayvan?", answer: "ASLAN", alt: ["KAPLAN", "KEDİ"] },
-            "L": { q: "Karanlıkta yön bulmayı sağlayan yoğun ve düzgün ışık demeti üreten cihaz?", answer: "LAZER", alt: ["LAMBA"] },
-            "M": { q: "Mıknatısın çektiği, sanayide ve yapılarda çok kullanılan sağlam maden?", answer: "DEMİR", alt: ["MADEN", "METAL"] },
-            "N": { q: "Geceleri gökyüzünü inceleyen, uzay çalışmalarını yürüten bilim insanı?", answer: "ASTRONOT", alt: ["NEBULA"] },
-            "O": { q: "Soluduğumuz havada bulunan ve yaşam için şart olan renksiz gaz?", answer: "OKSİJEN", alt: ["OKYANUS"] },
-            "P": { q: "Güneş sistemimizde sekizinci ve mavi renkli gaz devi olan gezegen?", answer: "NEPTÜN", alt: ["PLANET", "PUSULA"] },
-            "R": { q: "Ses ve müzik yayınlarını uzak mesafelere ileten elektronik cihaz?", answer: "RADYO", alt: ["ROKET"] },
-            "S": { q: "Su molekülünü oluşturan elementlerden hidrojen dışındaki diğeri?", answer: "OKSİJEN", alt: ["SU", "SES"] },
-            "Ş": { q: "Elektrik akımını ölçmekte veya kontrol etmekte kullanılan düzenek?", answer: "ŞALTER", alt: ["ŞİMŞEK"] },
-            "T": { q: "Dünyamızın atmosferini oluşturan katmanlardan en alt tabakası?", answer: "TROPOSFER", alt: ["TEKNOLOJİ"] },
-            "U": { q: "Dünya atmosferinin dışında kalan sonsuz boşluk?", answer: "UZAY", alt: ["UYDU"] },
-            "Ü": { q: "Elektrik enerjisini kullanarak ısı üreten ev aleti?", answer: "ÜTÜ", alt: ["ÜRETİCİ"] },
-            "V": { q: "Vücudumuza kan pompalayan ve göğsümüzde bulunan organımız?", answer: "KALP", alt: ["VÜCUT"] },
-            "Y": { q: "Gezegenimizin etrafında dönen ve gece ışık saçan gök cismi?", answer: "AY", alt: ["YILDIZ"] },
-            "Z": { q: "Zamanı saat, dakika ve saniye olarak gösteren araç?", answer: "SAAT", alt: ["ZAMAN"] }
-        };
+/* ============ 2. DURUM ============ */
+const GAME_SECONDS = 100;
+let gameState = {
+    isRunning: false,
+    currentIndex: 0,
+    timer: GAME_SECONDS,
+    timerInterval: null,
+    scoreCorrect: 0,
+    scorePass: 0,
+    lettersState: {},
+    isSpeaking: false,   // soru okunuyor mu
+    canAnswer: false     // sadece soru okunduktan sonra true
+};
+ALPHABET.forEach(l => gameState.lettersState[l] = 'pending');
 
-        // Substitute default questions for accurate Passaparola matching
-        ALPHABET.forEach(letter => {
-            if (!QUESTIONS_BANK[letter]) {
-                QUESTIONS_BANK[letter] = { q: `${letter} harfi ile başlayan kelimeyi tahmin edin.`, answer: letter + "ABO", alt: [] };
-            }
+/* ============ 3. SES EFEKTLERİ ============ */
+let AudioCtx = null;
+function playSound(type) {
+    try {
+        if (!AudioCtx) AudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (AudioCtx.state === 'suspended') AudioCtx.resume();
+        const osc = AudioCtx.createOscillator();
+        const gain = AudioCtx.createGain();
+        osc.connect(gain); gain.connect(AudioCtx.destination);
+        const now = AudioCtx.currentTime;
+        if (type === 'tick') {
+            osc.frequency.setValueAtTime(600, now);
+            gain.gain.setValueAtTime(0.03, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+            osc.start(now); osc.stop(now + 0.05);
+        } else if (type === 'correct') {
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(523.25, now);
+            osc.frequency.setValueAtTime(659.25, now + 0.1);
+            osc.frequency.setValueAtTime(783.99, now + 0.2);
+            gain.gain.setValueAtTime(0.2, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+            osc.start(now); osc.stop(now + 0.4);
+        } else if (type === 'wrong') {
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(180, now);
+            osc.frequency.setValueAtTime(130, now + 0.15);
+            gain.gain.setValueAtTime(0.12, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+            osc.start(now); osc.stop(now + 0.3);
+        } else if (type === 'pass') {
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(400, now);
+            osc.frequency.setValueAtTime(300, now + 0.1);
+            gain.gain.setValueAtTime(0.15, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+            osc.start(now); osc.stop(now + 0.25);
+        }
+    } catch (e) { /* ses çalmazsa oyun devam eder */ }
+}
+
+/* ============ 4. KAMERA + AR ÇEMBERİ ============ */
+const videoEl = document.getElementById('webcam');
+const canvasEl = document.getElementById('arCanvas');
+const stageEl = document.getElementById('stage');
+const ctx = canvasEl.getContext('2d');
+let dpr = 1;
+
+async function initCamera() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
+            audio: false
         });
+        videoEl.srcObject = stream;
+    } catch (err) {
+        console.warn('Kamera açılamadı:', err);
+    }
+}
 
-        // 2. STATE MANAGEMENT
-        let gameState = {
-            isRunning: false,
-            currentIndex: 0,
-            timer: 100,
-            timerInterval: null,
-            scoreCorrect: 0,
-            scoreWrong: 0,
-            lettersState: {}, // 'pending', 'active', 'correct', 'wrong', 'passed'
-            isListening: false,
-            isSpeaking: false
-        };
+function resizeCanvas() {
+    dpr = window.devicePixelRatio || 1;
+    canvasEl.width = Math.round(window.innerWidth * dpr);
+    canvasEl.height = Math.round(window.innerHeight * dpr);
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
 
-        // Initialize letter states
-        ALPHABET.forEach(l => gameState.lettersState[l] = 'pending');
+function renderAR() {
+    const W = window.innerWidth, H = window.innerHeight;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
 
-        // 3. SOUND SYNTHESIS (Web Audio API)
-        const AudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    // Çember, başlık ile alt panel arasındaki boş alanın ortasında durur
+    const r = stageEl.getBoundingClientRect();
+    const centerX = r.left + r.width / 2;
+    const centerY = r.top + r.height / 2;
+    const badgeBase = Math.max(11, Math.min(22, Math.min(r.width, r.height) * 0.06));
+    const radius = Math.max(40, Math.min(r.width, r.height) / 2 - badgeBase * 1.5);
+    const total = ALPHABET.length;
 
-        function playSound(type) {
-            try {
-                if (AudioCtx.state === 'suspended') AudioCtx.resume();
-                const osc = AudioCtx.createOscillator();
-                const gain = AudioCtx.createGain();
-                osc.connect(gain);
-                gain.connect(AudioCtx.destination);
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius + badgeBase * 0.7, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(0, 240, 255, 0.2)';
+    ctx.lineWidth = 3;
+    ctx.shadowColor = '#00f0ff';
+    ctx.shadowBlur = 15;
+    ctx.stroke();
+    ctx.restore();
 
-                const now = AudioCtx.currentTime;
+    ALPHABET.forEach((letter, idx) => {
+        const angle = (idx / total) * Math.PI * 2 - Math.PI / 2;
+        const x = centerX + Math.cos(angle) * radius;
+        const y = centerY + Math.sin(angle) * radius;
+        const state = gameState.lettersState[letter];
+        const isActive = idx === gameState.currentIndex && gameState.isRunning;
 
-                if (type === 'tick') {
-                    osc.frequency.setValueAtTime(600, now);
-                    gain.gain.setValueAtTime(0.05, now);
-                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
-                    osc.start(now);
-                    osc.stop(now + 0.05);
-                } else if (type === 'correct') {
-                    osc.type = 'sine';
-                    osc.frequency.setValueAtTime(523.25, now); // C5
-                    osc.frequency.setValueAtTime(659.25, now + 0.1); // E5
-                    osc.frequency.setValueAtTime(783.99, now + 0.2); // G5
-                    gain.gain.setValueAtTime(0.2, now);
-                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
-                    osc.start(now);
-                    osc.stop(now + 0.4);
-                } else if (type === 'wrong') {
-                    osc.type = 'sawtooth';
-                    osc.frequency.setValueAtTime(180, now);
-                    osc.frequency.setValueAtTime(130, now + 0.15);
-                    gain.gain.setValueAtTime(0.25, now);
-                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
-                    osc.start(now);
-                    osc.stop(now + 0.35);
-                } else if (type === 'pass') {
-                    osc.type = 'triangle';
-                    osc.frequency.setValueAtTime(400, now);
-                    osc.frequency.setValueAtTime(300, now + 0.1);
-                    gain.gain.setValueAtTime(0.15, now);
-                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
-                    osc.start(now);
-                    osc.stop(now + 0.25);
-                }
-            } catch (e) {
-                console.warn('Audio play error', e);
-            }
+        let bg = 'rgba(10, 20, 40, 0.85)', border = '#00f0ff', text = '#fff', glow = 'rgba(0,240,255,.5)';
+        let br = badgeBase;
+
+        if (isActive) {
+            bg = 'rgba(255, 215, 0, 0.95)'; border = '#fff'; text = '#000'; glow = 'rgba(255,215,0,.9)';
+            br = badgeBase * 1.3;
+        } else if (state === 'correct') {
+            bg = 'rgba(0, 230, 118, 0.9)'; border = '#00ff66'; text = '#000'; glow = 'rgba(0,255,102,.8)';
+        } else if (state === 'passed') {
+            bg = 'rgba(255, 152, 0, 0.85)'; border = '#ff9800'; text = '#fff'; glow = 'rgba(255,152,0,.8)';
         }
 
-        // 4. WEBCAM & AR CANVAS RENDERER
-        const videoEl = document.getElementById('webcam');
-        const canvasEl = document.getElementById('arCanvas');
-        const ctx = canvasEl.getContext('2d');
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(x, y, br, 0, Math.PI * 2);
+        ctx.fillStyle = bg;
+        ctx.shadowColor = glow;
+        ctx.shadowBlur = 12;
+        ctx.fill();
+        ctx.lineWidth = isActive ? 3 : 2;
+        ctx.strokeStyle = border;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = text;
+        ctx.font = `bold ${br * 0.9}px 'Orbitron', sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(letter, x, y + 1);
+        ctx.restore();
+    });
 
-        async function initCamera() {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
-                    audio: false
-                });
-                videoEl.srcObject = stream;
-            } catch (err) {
-                console.warn('Camera access denied or unavailable:', err);
-            }
+    requestAnimationFrame(renderAR);
+}
+
+/* ============ 5. KONUŞMA TANIMA (STT) + SESLENDİRME (TTS) ============ */
+let recognition = null;
+let recActive = false;        // tanıma şu an çalışıyor mu
+let restartTimer = null;
+let listenGraceUntil = 0;     // bu zamandan önce gelen sesler yok sayılır (yankı koruması)
+const synth = window.speechSynthesis;
+let speakToken = 0;           // eski konuşmaların geç gelen olaylarını yok saymak için
+let speakFallbackTimer = null;
+
+// Türkçe metni karşılaştırmak için sadeleştirir: küçük harf, aksansız, sadece harf/rakam
+function fold(s) {
+    return (s || '')
+        .toLocaleLowerCase('tr-TR')
+        .replace(/ç/g, 'c').replace(/ğ/g, 'g').replace(/ı/g, 'i').replace(/i̇/g, 'i')
+        .replace(/ö/g, 'o').replace(/ş/g, 's').replace(/ü/g, 'u')
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function levenshtein(a, b) {
+    const m = a.length, n = b.length;
+    if (!m) return n; if (!n) return m;
+    let prev = Array.from({ length: n + 1 }, (_, i) => i);
+    for (let i = 1; i <= m; i++) {
+        const cur = [i];
+        for (let j = 1; j <= n; j++) {
+            cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
         }
+        prev = cur;
+    }
+    return prev[n];
+}
 
-        function resizeCanvas() {
-            canvasEl.width = window.innerWidth;
-            canvasEl.height = window.innerHeight;
+// Söylenen metin cevapla eşleşiyor mu? (tam kelime ya da çok yakın telaffuz)
+function matchesAnswer(spoken, answer) {
+    const s = fold(spoken), a = fold(answer);
+    if (!s || !a) return false;
+    const words = s.split(' ');
+    if (a.includes(' ')) {
+        if ((' ' + s + ' ').includes(' ' + a + ' ')) return true;
+    } else if (words.includes(a)) {
+        return true;
+    }
+    // 4+ harfli cevaplarda küçük tanıma hatalarına tolerans
+    if (a.length >= 4 && !a.includes(' ')) {
+        const tol = a.length >= 7 ? 2 : 1;
+        return words.some(w => w.length >= 3 && Math.abs(w.length - a.length) <= tol && levenshtein(w, a) <= tol);
+    }
+    return false;
+}
+
+function hasWord(spoken, ...cmds) {
+    const words = fold(spoken).split(' ');
+    return cmds.some(c => words.includes(c));
+}
+
+function initSpeech() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) {
+        updateMicStatus(false, 'Bu tarayıcı sesli tanımayı desteklemiyor (Chrome kullan)');
+        return;
+    }
+    recognition = new SR();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'tr-TR';
+    recognition.maxAlternatives = 3;
+
+    recognition.onstart = () => {
+        recActive = true;
+        if (gameState.canAnswer) updateMicStatus(true, 'Dinliyorum, cevabını söyle...');
+    };
+
+    recognition.onresult = (event) => {
+        // Soru okunurken ya da yeni soru yüklenirken gelen sesler cevap sayılmaz
+        if (!gameState.isRunning || !gameState.canAnswer || Date.now() < listenGraceUntil) return;
+
+        let heard = [];
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+            for (let k = 0; k < event.results[i].length; k++) heard.push(event.results[i][k].transcript);
         }
-        window.addEventListener('resize', resizeCanvas);
-        resizeCanvas();
+        const best = (heard[0] || '').trim();
+        document.getElementById('speechTranscript').innerText = best ? `"${best.toLocaleUpperCase('tr-TR')}"` : '';
 
-        // Render Loop for AR HUD Overlay
-        function renderAR() {
-            ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+        const isFinal = event.results[event.results.length - 1].isFinal;
+        evaluateSpeechInput(heard, isFinal);
+    };
 
-            const centerX = canvasEl.width / 2;
-            const centerY = canvasEl.height / 2;
-            // Radius responsive based on screen height/width
-            const radius = Math.min(canvasEl.width, canvasEl.height) * 0.32;
-            const totalLetters = ALPHABET.length;
-
-            // Draw central glowing halo
-            ctx.save();
-            ctx.beginPath();
-            ctx.arc(centerX, centerY, radius + 15, 0, Math.PI * 2);
-            ctx.strokeStyle = 'rgba(0, 240, 255, 0.2)';
-            ctx.lineWidth = 4;
-            ctx.shadowColor = '#00f0ff';
-            ctx.shadowBlur = 15;
-            ctx.stroke();
-            ctx.restore();
-
-            // Draw Alphabet Wheel Badges
-            ALPHABET.forEach((letter, idx) => {
-                // Calculate angle starting from top (-90 deg)
-                const angle = (idx / totalLetters) * (Math.PI * 2) - (Math.PI / 2);
-                const x = centerX + Math.cos(angle) * radius;
-                const y = centerY + Math.sin(angle) * radius;
-
-                const state = gameState.lettersState[letter];
-                let bgColor = 'rgba(10, 20, 40, 0.85)';
-                let borderColor = '#00f0ff';
-                let textColor = '#ffffff';
-                let glowColor = 'rgba(0, 240, 255, 0.5)';
-                let badgeRadius = 22;
-
-                if (idx === gameState.currentIndex && gameState.isRunning) {
-                    // Active current letter
-                    bgColor = 'rgba(255, 215, 0, 0.9)';
-                    borderColor = '#ffffff';
-                    textColor = '#000000';
-                    glowColor = 'rgba(255, 215, 0, 0.9)';
-                    badgeRadius = 28;
-                } else if (state === 'correct') {
-                    bgColor = 'rgba(0, 230, 118, 0.9)';
-                    borderColor = '#00ff66';
-                    textColor = '#000000';
-                    glowColor = 'rgba(0, 255, 102, 0.8)';
-                } else if (state === 'wrong') {
-                    bgColor = 'rgba(255, 23, 68, 0.85)';
-                    borderColor = '#ff1744';
-                    textColor = '#ffffff';
-                    glowColor = 'rgba(255, 23, 68, 0.8)';
-                } else if (state === 'passed') {
-                    bgColor = 'rgba(255, 152, 0, 0.85)';
-                    borderColor = '#ff9800';
-                    textColor = '#ffffff';
-                    glowColor = 'rgba(255, 152, 0, 0.8)';
-                }
-
-                // Badge Shadow & Glow
-                ctx.save();
-                ctx.beginPath();
-                ctx.arc(x, y, badgeRadius, 0, Math.PI * 2);
-                ctx.fillStyle = bgColor;
-                ctx.shadowColor = glowColor;
-                ctx.shadowBlur = 12;
-                ctx.fill();
-
-                // Border
-                ctx.lineWidth = (idx === gameState.currentIndex && gameState.isRunning) ? 4 : 2;
-                ctx.strokeStyle = borderColor;
-                ctx.stroke();
-
-                // Letter Text
-                ctx.shadowBlur = 0;
-                ctx.fillStyle = textColor;
-                ctx.font = `bold ${badgeRadius * 0.9}px 'Orbitron', sans-serif`;
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText(letter, x, y + 2);
-                ctx.restore();
-            });
-
-            requestAnimationFrame(renderAR);
+    recognition.onerror = (e) => {
+        if (e.error === 'no-speech' || e.error === 'aborted') return; // normal, sessizlik
+        console.warn('STT hatası:', e.error);
+        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+            updateMicStatus(false, 'Mikrofon izni verilmedi');
+            gameState.micBlocked = true;
         }
+    };
 
-        // 5. WEB SPEECH API INTEGRATION (STT & TTS)
-        let recognition = null;
-        const synth = window.speechSynthesis;
+    recognition.onend = () => {
+        recActive = false;
+        scheduleListen();
+    };
+}
 
-        function initSpeech() {
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            if (SpeechRecognition) {
-                recognition = new SpeechRecognition();
-                recognition.continuous = true;
-                recognition.interimResults = true;
-                recognition.lang = 'tr-TR';
+function startListening() {
+    if (!recognition || recActive || !gameState.isRunning || gameState.isSpeaking || gameState.micBlocked) return;
+    try { recognition.start(); } catch (e) { /* zaten çalışıyor */ }
+}
 
-                recognition.onstart = () => {
-                    gameState.isListening = true;
-                    updateMicStatus(true, 'Sizi dinliyorum...');
-                };
+function scheduleListen(delay = 250) {
+    clearTimeout(restartTimer);
+    restartTimer = setTimeout(startListening, delay);
+}
 
-                recognition.onresult = (event) => {
-                    let transcript = '';
-                    for (let i = event.resultIndex; i < event.results.length; ++i) {
-                        transcript += event.results[i][0].transcript;
-                    }
-                    transcript = transcript.trim().toUpperCase();
-                    document.getElementById('speechTranscript').innerText = `"${transcript}"`;
+function stopListening() {
+    clearTimeout(restartTimer);
+    if (recognition && recActive) {
+        try { recognition.abort(); } catch (e) {}
+    }
+}
 
-                    if (event.results[event.results.length - 1].isFinal) {
-                        evaluateSpeechInput(transcript);
-                    }
-                };
+function updateMicStatus(active, text) {
+    const dot = document.getElementById('micIndicator');
+    const st = document.getElementById('speechStatus');
+    if (active) {
+        dot.className = "w-3 h-3 shrink-0 rounded-full bg-emerald-400 listening-pulse";
+        st.className = "text-emerald-400 font-bold truncate";
+    } else {
+        dot.className = "w-3 h-3 shrink-0 rounded-full bg-rose-500";
+        st.className = "text-gray-400 italic truncate";
+    }
+    st.innerText = text;
+}
 
-                recognition.onerror = (e) => {
-                    console.warn('STT Error:', e.error);
-                    updateMicStatus(false, 'Mikrofon hatası');
-                };
+// Soruyu sesli okur; bitince mikrofonu açar
+function speakPrompt(text, callback) {
+    const myToken = ++speakToken;
+    clearTimeout(speakFallbackTimer);
 
-                recognition.onend = () => {
-                    gameState.isListening = false;
-                    // Auto-restart listening if game is active
-                    if (gameState.isRunning && !gameState.isSpeaking) {
-                        try { recognition.start(); } catch (err) {}
-                    } else {
-                        updateMicStatus(false, 'Dinleme durduruldu');
-                    }
-                };
-            } else {
-                updateMicStatus(false, 'Web Speech API desteklenmiyor');
-            }
+    gameState.canAnswer = false;
+    gameState.isSpeaking = true;
+    stopListening(); // kendi sesini cevap sanmasın
+    updateMicStatus(false, 'Soru okunuyor...');
+
+    let finished = false;
+    const finish = () => {
+        if (finished || myToken !== speakToken) return; // eski konuşmanın geç olayı
+        finished = true;
+        clearTimeout(speakFallbackTimer);
+        gameState.isSpeaking = false;
+        if (callback) { callback(); return; }
+        if (gameState.isRunning) {
+            listenGraceUntil = Date.now() + 400;
+            gameState.canAnswer = true;
+            updateMicStatus(true, 'Dinliyorum, cevabını söyle...');
+            scheduleListen(150);
         }
+    };
 
-        function updateMicStatus(active, text) {
-            const micDot = document.getElementById('micIndicator');
-            const statusText = document.getElementById('speechStatus');
-            if (active) {
-                micDot.className = "w-3 h-3 rounded-full bg-emerald-400 listening-pulse";
-                statusText.className = "text-emerald-400 font-bold";
-            } else {
-                micDot.className = "w-3 h-3 rounded-full bg-rose-500";
-                statusText.className = "text-gray-400 italic";
-            }
-            statusText.innerText = text;
+    if (!synth) { finish(); return; }
+
+    synth.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'tr-TR';
+    u.rate = 1.0;
+    u.onend = finish;
+    u.onerror = finish;
+
+    // Bazı tarayıcılarda onend hiç gelmez; takılı kalmasın diye yedek zamanlayıcı
+    speakFallbackTimer = setTimeout(finish, Math.max(3000, text.length * 110));
+
+    // cancel() hemen ardından speak() bazı tarayıcılarda sorun çıkarır, kısa bekle
+    setTimeout(() => { if (myToken === speakToken) synth.speak(u); }, 60);
+}
+
+/* ============ 6. OYUN MANTIĞI ============ */
+function startGame() {
+    if (gameState.isRunning) return;
+    // Kullanıcı tıklamasıyla ses motorunu ve mikrofonu uyandır
+    if (!AudioCtx) { try { AudioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
+
+    gameState.isRunning = true;
+    gameState.micBlocked = false;
+    gameState.timer = GAME_SECONDS;
+    gameState.scoreCorrect = 0;
+    gameState.scorePass = 0;
+    gameState.currentIndex = 0;
+    ALPHABET.forEach(l => gameState.lettersState[l] = 'pending');
+
+    document.getElementById('timerDisplay').innerText = gameState.timer;
+    document.getElementById('btnStart').disabled = true;
+    document.getElementById('btnPass').disabled = false;
+    updateScoreboard();
+
+    clearInterval(gameState.timerInterval);
+    gameState.timerInterval = setInterval(() => {
+        if (gameState.timer > 0) {
+            gameState.timer--;
+            document.getElementById('timerDisplay').innerText = gameState.timer;
+            if (gameState.timer <= 10) playSound('tick');
         }
+        if (gameState.timer <= 0) endGame('Süre doldu!');
+    }, 1000);
 
-        // Text To Speech Readout
-        function speakPrompt(text, callback) {
-            if (!synth) {
-                if (callback) callback();
-                return;
-            }
+    loadNextQuestion();
+}
 
-            synth.cancel(); // Stop any ongoing speech
-            gameState.isSpeaking = true;
+function loadNextQuestion() {
+    if (!gameState.isRunning) return;
 
-            // Pause STT during TTS to prevent hearing itself
-            if (recognition && gameState.isListening) {
-                try { recognition.stop(); } catch (e) {}
-            }
-
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = 'tr-TR';
-            utterance.rate = 1.05;
-            utterance.pitch = 1.0;
-
-            utterance.onend = () => {
-                gameState.isSpeaking = false;
-                if (gameState.isRunning && recognition) {
-                    try { recognition.start(); } catch (e) {}
-                }
-                if (callback) callback();
-            };
-
-            utterance.onerror = () => {
-                gameState.isSpeaking = false;
-                if (gameState.isRunning && recognition) {
-                    try { recognition.start(); } catch (e) {}
-                }
-                if (callback) callback();
-            };
-
-            synth.speak(utterance);
+    // Sıradaki bekleyen veya pas geçilmiş harfi bul
+    let found = false;
+    for (let i = 0; i < ALPHABET.length; i++) {
+        const idx = (gameState.currentIndex + i) % ALPHABET.length;
+        const st = gameState.lettersState[ALPHABET[idx]];
+        if (st === 'pending' || st === 'passed') {
+            gameState.currentIndex = idx;
+            found = true;
+            break;
         }
+    }
+    if (!found) { endGame('Tüm sorular tamamlandı!'); return; }
 
-        // 6. GAME LOGIC & EVALUATION ENGINE
-        function startGame() {
-            if (gameState.isRunning) return;
+    const letter = ALPHABET[gameState.currentIndex];
+    const qData = QUESTIONS_BANK[letter];
 
-            gameState.isRunning = true;
-            gameState.timer = 100;
-            gameState.scoreCorrect = 0;
-            gameState.scoreWrong = 0;
-            gameState.currentIndex = 0;
-            ALPHABET.forEach(l => gameState.lettersState[l] = 'pending');
+    document.getElementById('currentLetterBadge').innerText = letter;
+    document.getElementById('questionText').innerText = qData.q;
+    document.getElementById('speechTranscript').innerText = '';
 
-            document.getElementById('btnStart').disabled = true;
-            document.getElementById('btnPass').disabled = false;
-            updateScoreboard();
+    speakPrompt(`${letter} harfi. ${qData.q}`);
+}
 
-            // Start Countdown Timer
-            clearInterval(gameState.timerInterval);
-            gameState.timerInterval = setInterval(() => {
-                if (gameState.timer > 0) {
-                    gameState.timer--;
-                    document.getElementById('timerDisplay').innerText = gameState.timer;
-                    playSound('tick');
-                } else {
-                    endGame('Süre doldu!');
-                }
-            }, 1000);
+// heard: tanıma motorunun verdiği alternatif metinler
+function evaluateSpeechInput(heard, isFinal) {
+    if (!gameState.isRunning || !gameState.canAnswer) return;
 
-            // Initial speech start
-            if (recognition) {
-                try { recognition.start(); } catch (e) {}
-            }
+    const letter = ALPHABET[gameState.currentIndex];
+    const qData = QUESTIONS_BANK[letter];
+    const targets = [qData.answer, ...qData.alt];
 
-            loadNextQuestion();
-        }
+    // Sesli komutlar
+    if (heard.some(h => hasWord(h, 'pas', 'pass'))) { handlePass(); return; }
+    if (isFinal && heard.some(h => hasWord(h, 'tekrar'))) { speakPrompt(`${letter} harfi. ${qData.q}`); return; }
 
-        function loadNextQuestion() {
-            // Find next pending or passed question index
-            let initialIdx = gameState.currentIndex;
-            let found = false;
+    // Doğru cevap: ara sonuçta bile hemen kabul et
+    const ok = heard.some(h => targets.some(t => matchesAnswer(h, t)));
+    if (ok) {
+        gameState.canAnswer = false;       // aynı cevabı iki kez saymasın
+        playSound('correct');
+        gameState.lettersState[letter] = 'correct';
+        gameState.scoreCorrect++;
+        updateScoreboard();
+        updateMicStatus(true, 'Doğru!');
+        stopListening();
+        advanceTurn();
+        return;
+    }
 
-            for (let i = 0; i < ALPHABET.length; i++) {
-                let idx = (initialIdx + i) % ALPHABET.length;
-                let letter = ALPHABET[idx];
-                if (gameState.lettersState[letter] === 'pending' || gameState.lettersState[letter] === 'passed') {
-                    gameState.currentIndex = idx;
-                    found = true;
-                    break;
-                }
-            }
+    // Yanlış: sonraki soruya GEÇME, aynı soruda dinlemeye devam et
+    if (isFinal && fold(heard[0]).length >= 2) {
+        playSound('wrong');
+        updateMicStatus(true, 'Tekrar dene, dinliyorum...');
+    }
+}
 
-            if (!found) {
-                endGame('Tüm sorular tamamlandı!');
-                return;
-            }
+function handlePass() {
+    if (!gameState.isRunning) return;
+    const letter = ALPHABET[gameState.currentIndex];
+    gameState.canAnswer = false;
+    stopListening();
+    playSound('pass');
+    gameState.lettersState[letter] = 'passed';
+    gameState.scorePass++;
+    updateScoreboard();
+    advanceTurn();
+}
 
-            const currentLetter = ALPHABET[gameState.currentIndex];
-            const qData = QUESTIONS_BANK[currentLetter];
+function advanceTurn() {
+    gameState.currentIndex = (gameState.currentIndex + 1) % ALPHABET.length;
+    setTimeout(loadNextQuestion, 700);
+}
 
-            document.getElementById('currentLetterBadge').innerText = `HARF: ${currentLetter}`;
-            document.getElementById('questionText').innerText = qData.q;
-            document.getElementById('speechTranscript').innerText = '';
+function updateScoreboard() {
+    document.getElementById('scoreCorrect').innerText = gameState.scoreCorrect;
+    document.getElementById('scorePass').innerText = gameState.scorePass;
+}
 
-            // Read aloud prompt
-            speakPrompt(`${currentLetter} harfi. ${qData.q}`);
-        }
+function endGame(reason) {
+    gameState.isRunning = false;
+    gameState.canAnswer = false;
+    clearInterval(gameState.timerInterval);
+    stopListening();
 
-        function evaluateSpeechInput(inputStr) {
-            if (!gameState.isRunning || gameState.isSpeaking) return;
+    document.getElementById('btnStart').disabled = false;
+    document.getElementById('btnPass').disabled = true;
 
-            const currentLetter = ALPHABET[gameState.currentIndex];
-            const qData = QUESTIONS_BANK[currentLetter];
+    const msg = `Oyun bitti! ${reason} Doğru: ${gameState.scoreCorrect}`;
+    document.getElementById('questionText').innerText = msg;
+    document.getElementById('currentLetterBadge').innerText = '★';
+    updateMicStatus(false, 'Oyun bitti');
+    speakPrompt(msg, () => {});
+}
 
-            // Normalize speech for Turkish
-            const cleanInput = inputStr.toLocaleUpperCase('tr-TR');
+function resetGame() {
+    speakToken++;
+    clearTimeout(speakFallbackTimer);
+    if (synth) synth.cancel();
+    gameState.isRunning = false;
+    gameState.canAnswer = false;
+    gameState.isSpeaking = false;
+    clearInterval(gameState.timerInterval);
+    stopListening();
 
-            // Keyword: PAS
-            if (cleanInput.includes("PAS") || cleanInput === "PASS") {
-                handlePass();
-                return;
-            }
+    gameState.timer = GAME_SECONDS;
+    gameState.scoreCorrect = 0;
+    gameState.scorePass = 0;
+    gameState.currentIndex = 0;
+    ALPHABET.forEach(l => gameState.lettersState[l] = 'pending');
 
-            // Keyword: BAŞLA / BAŞLAT
-            if (!gameState.isRunning && (cleanInput.includes("BAŞLA") || cleanInput.includes("BAŞLAT"))) {
-                startGame();
-                return;
-            }
+    document.getElementById('timerDisplay').innerText = GAME_SECONDS;
+    document.getElementById('btnStart').disabled = false;
+    document.getElementById('btnPass').disabled = true;
+    document.getElementById('questionText').innerText = '"BAŞLAT" butonuna bas, soruları sesli cevapla.';
+    document.getElementById('currentLetterBadge').innerText = '?';
+    document.getElementById('speechTranscript').innerText = '';
+    updateMicStatus(false, 'Ses dinleme hazır');
+    updateScoreboard();
+}
 
-            // Check Correct Answer (Main answer or alternates)
-            const targetAnswer = qData.answer.toLocaleUpperCase('tr-TR');
-            const isCorrect = cleanInput.includes(targetAnswer) || qData.alt.some(alt => cleanInput.includes(alt.toLocaleUpperCase('tr-TR')));
-
-            if (isCorrect) {
-                playSound('correct');
-                gameState.lettersState[currentLetter] = 'correct';
-                gameState.scoreCorrect++;
-                updateScoreboard();
-                advanceTurn();
-            } else if (cleanInput.length >= 2) {
-                // Wrong Answer
-                playSound('wrong');
-                gameState.lettersState[currentLetter] = 'wrong';
-                gameState.scoreWrong++;
-                updateScoreboard();
-                advanceTurn();
-            }
-        }
-
-        function handlePass() {
-            if (!gameState.isRunning) return;
-            const currentLetter = ALPHABET[gameState.currentIndex];
-            playSound('pass');
-            gameState.lettersState[currentLetter] = 'passed';
-            advanceTurn();
-        }
-
-        function advanceTurn() {
-            gameState.currentIndex = (gameState.currentIndex + 1) % ALPHABET.length;
-            setTimeout(() => {
-                loadNextQuestion();
-            }, 300);
-        }
-
-        function updateScoreboard() {
-            document.getElementById('scoreCorrect').innerText = gameState.scoreCorrect;
-            document.getElementById('scoreWrong').innerText = gameState.scoreWrong;
-        }
-
-        function endGame(reason) {
-            gameState.isRunning = false;
-            clearInterval(gameState.timerInterval);
-            if (synth) synth.cancel();
-
-            document.getElementById('btnStart').disabled = false;
-            document.getElementById('btnPass').disabled = true;
-
-            const finalMsg = `Oyun Bitti! ${reason} Doğru: ${gameState.scoreCorrect}, Yanlış: ${gameState.scoreWrong}`;
-            document.getElementById('questionText').innerText = finalMsg;
-            document.getElementById('currentLetterBadge').innerText = 'SONUÇ';
-
-            speakPrompt(finalMsg);
-        }
-
-        function resetGame() {
-            if (synth) synth.cancel();
-            gameState.isRunning = false;
-            clearInterval(gameState.timerInterval);
-
-            gameState.timer = 100;
-            gameState.scoreCorrect = 0;
-            gameState.scoreWrong = 0;
-            gameState.currentIndex = 0;
-            ALPHABET.forEach(l => gameState.lettersState[l] = 'pending');
-
-            document.getElementById('timerDisplay').innerText = 100;
-            document.getElementById('btnStart').disabled = false;
-            document.getElementById('btnPass').disabled = true;
-            document.getElementById('questionText').innerText = 'Oyunu başlatmak için aşağıdaki "BAŞLAT" butonuna bas veya "Başla" de!';
-            document.getElementById('currentLetterBadge').innerText = 'HARF: A';
-            document.getElementById('speechTranscript').innerText = '';
-            updateScoreboard();
-        }
-
-        // INITIALIZE APP ON LOAD
-        window.onload = () => {
-            initCamera();
-            initSpeech();
-            renderAR();
-        };
-    </script>
+window.onload = () => {
+    initCamera();
+    initSpeech();
+    renderAR();
+};
+</script>
+</div>
 </body>
 </html>
